@@ -15,8 +15,8 @@
 TEST(testMath, zero)
 {
 	Price p(0.0);
-	EXPECT_EQ(p.decomp.floor, 0);
-	EXPECT_EQ(p.decomp.frac, 0);
+	EXPECT_EQ(p.floor(), 0);
+	EXPECT_EQ(p.keyFrac2(), 0);
 }
 
 TEST(testMath, decompositionThousand)
@@ -24,10 +24,10 @@ TEST(testMath, decompositionThousand)
 	for (double d = -1000.0; d <= 1000.0 + 1e-9; d += 0.001)
 	{
 		Price p(d);
-		EXPECT_EQ(p.decomp.floor, floor(d + 1e-10));
-		unsigned short fr = unsigned short((d + 1e-10 - p.decomp.floor) * (1 << 16));
+		EXPECT_EQ(p.floor(), floor(d + 1e-10));
+		unsigned short fr = unsigned short((d + 1e-10 - p.floor()) * (1 << 16));
 //		fr &= 0xFFFE;
-		EXPECT_EQ(p.decomp.frac, fr);
+		EXPECT_EQ(p.keyFrac2(), fr & 0xFFF0);
 	}
 }
 
@@ -36,7 +36,7 @@ TEST(testMath, decompositionMillionNeg)
 	for (double d = -1000.0; d <= -998.0 + 1e-9; d += 0.000001)
 	{
 		Price p(d);
-		EXPECT_EQ(p.decomp.floor, floor(d + 1e-9));
+		EXPECT_EQ(p.floor(), floor(d + 1e-9));
 	}
 }
 TEST(testMath, decompositionMillionPos)
@@ -44,7 +44,7 @@ TEST(testMath, decompositionMillionPos)
 	for (double d = 1000.0; d <= 1002.0 + 1e-9; d += 0.000001)
 	{
 		Price p(d);
-		EXPECT_EQ(p.decomp.floor, floor(d + 1e-9));
+		EXPECT_EQ(p.floor(), floor(d + 1e-9));
 	}
 }
 TEST(testMath, decompositionMillionNull)
@@ -52,45 +52,69 @@ TEST(testMath, decompositionMillionNull)
 	for (double d = -1.0; d <= 1.0 + 1e-9; d += 0.000001)
 	{
 		Price p(d);
-		EXPECT_EQ(p.decomp.floor, floor(d + 1e-9));
+		EXPECT_EQ(p.floor(), floor(d + 1e-9));
 	}
 }
 
-TEST(testMath, fracBins)
+TEST(testMath, fracBins1000)
 {
 	std::map<unsigned short, int> allFracBins;
 	// for the 0 that is counted once more
 	--allFracBins[0];
 	int subVal = 1000;
+	double oneOverSubVal = 1 / double(subVal);
 	for (int i = -1000 * subVal; i <= 1000 * subVal; ++i)
 	{
 		double d = i;
-		d /= double(subVal);
+		d *= oneOverSubVal;
 		Price p(d);
-		++allFracBins[p.decomp.frac];
+		++allFracBins[p.keyFrac2()];
 	}
 	for (const auto & p : allFracBins)
 	{
-		EXPECT_EQ(p.second, 2 * subVal);
+		EXPECT_EQ(p.second, 2 * 1000);
 	}
 }
 
-TEST(testMath, substraction_100)
+TEST(testMath, fracBins100)
 {
+	std::map<unsigned short, int> allFracBins;
+	// for the 0 that is counted once more
+	--allFracBins[0];
 	int subVal = 100;
-	for (int i = -1000 * subVal; i <= 1000 * subVal; ++i)
+	double oneOverSubVal = 1 / double(subVal);
+	for (int i = -10000 * subVal; i <= 10000 * subVal; ++i)
 	{
 		double d = i;
-		d /= double(subVal);
+		d *= oneOverSubVal;
 		Price p(d);
-		for (int j = -1000 * subVal; j <= 1000 * subVal; ++j)
+		++allFracBins[p.keyFrac1()];
+	}
+	for (const auto & p : allFracBins)
+	{
+		EXPECT_EQ(p.second, 2 * 10000);
+	}
+}
+
+TEST(testMath, add_100)
+{
+	int subVal = 10;
+	double oneOverSubVal = 1 / double(subVal);
+	for (int i = -10 * subVal; i <= 10 * subVal; ++i)
+	{
+		double d = i;
+		d *= oneOverSubVal;
+		Price p(d);
+		for (int j = -10 * subVal; j <= 10 * subVal; ++j)
 		{
 			double d2 = j;
-			d2 /= double(subVal);
+			d2 *= oneOverSubVal;
 			Price p2(d2);
-			double sub = d - d2;
-			Price psub(sub);
-			//EXPECT_EQ(psub.i, (p - p2).i);
+			Price pa(d + d2);
+			Price p12 = p + p2;
+			//EXPECT_EQ(pa.key1(), p12.key1());
+			if (pa.key1() != p12.key1())
+				d2++;
 		}
 	}
 }
